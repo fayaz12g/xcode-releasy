@@ -6,6 +6,8 @@ from tkinter import filedialog
 import requests
 import json
 from datetime import datetime
+import threading
+
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
@@ -63,8 +65,12 @@ class BuildApp(ctk.CTk):
         self.log_text.grid(row=8, column=0, columnspan=3, padx=10, pady=10)
         
         # Start Button
-        ctk.CTkButton(self, text="Release(y)", command=self.start_build).grid(row=9, column=0, columnspan=3, pady=10)
+        ctk.CTkButton(self, text="Release(y)", command=self.start_build_threaded).grid(row=9, column=0, columnspan=3, pady=10)
         
+    def start_build_threaded(self):
+        thread = threading.Thread(target=self.start_build)
+        thread.start()
+
     def log(self, message):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.log_text.insert("end", f"[{timestamp}] {message}\n")
@@ -228,7 +234,8 @@ class BuildApp(ctk.CTk):
             env["DEVELOPER_DIR"] = developer_dir
             
             self.log("Starting build...")
-            subprocess.run([
+            process = subprocess.Popen(
+            [
                 "xcodebuild",
                 "-allowProvisioningUpdates",
                 "-workspace", self.project_workspace.get(),
@@ -237,20 +244,39 @@ class BuildApp(ctk.CTk):
                 "-configuration", "Release",
                 "archive",
                 "-archivePath", archive_path
-            ], env=env, check=True)
-            
-            # Create IPA
-            self.log("Creating IPA...")
-            self.create_ipa(app_path, ipa_path)
-            self.log(f"IPA created at {ipa_path}")
-            
-            # GitHub Upload
-            if self.upload_to_github.get():
-                self.log("Uploading to GitHub...")
-                self.create_github_release(marketing_version, new_build_number, ipa_path, self.changelog.get())
-                self.log("GitHub upload complete")
-            
-            self.log("Build successful!")
+            ],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+            )
+
+            for line in process.stdout:
+                self.log(line.strip())
+
+            process.stdout.close()
+            process.wait()
+
+            if process.returncode != 0:
+                self.log(f"Xcode build process failed with exit code {process.returncode}")
+                return
+            else:
+                self.log("Xcode process succeeded.")
+
+                
+                # Create IPA
+                self.log("Creating IPA...")
+                self.create_ipa(app_path, ipa_path)
+                self.log(f"IPA created at {ipa_path}")
+                
+                # GitHub Upload
+                if self.upload_to_github.get():
+                    self.log("Uploading to GitHub...")
+                    self.create_github_release(marketing_version, new_build_number, ipa_path, self.changelog.get())
+                    self.log("GitHub upload complete")
+                
+                self.log("Build successful!")
             
         except Exception as e:
             self.log(f"Error: {str(e)}")
