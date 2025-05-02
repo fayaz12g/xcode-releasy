@@ -63,7 +63,7 @@ class BuildApp(ctk.CTk):
         self.log_text.grid(row=8, column=0, columnspan=3, padx=10, pady=10)
         
         # Start Button
-        ctk.CTkButton(self, text="Start Build", command=self.start_build).grid(row=9, column=0, columnspan=3, pady=10)
+        ctk.CTkButton(self, text="Release(y)", command=self.start_build).grid(row=9, column=0, columnspan=3, pady=10)
         
     def log(self, message):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
